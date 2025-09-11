@@ -1,89 +1,83 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"fmt"
-	"io"
 	"log"
 	"net"
+	"strings"
 )
 
-func getLinesChannel(f io.ReadCloser) <-chan string {
-
-	str := ""
-	out := make(chan string, 1)
-
-	go func() {
-
-		defer close(out)
-		defer func(f io.ReadCloser) {
-			err := f.Close()
-			if err != nil {
-				log.Fatal("can't close file")
-			}
-		}(f)
-
-		for {
-			//reading 8 bytes
-
-			buffer := make([]byte, 8)
-			data, err := f.Read(buffer)
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				break
-			}
-
-			buffer = buffer[:data]
-
-			if i := bytes.IndexByte(buffer, '\n'); i != -1 {
-				str += string(buffer[:i])
-				buffer = buffer[i+1:]
-				out <- str
-				str = ""
-			}
-			str += string(buffer)
-		}
-
-		if len(str) != 0 {
-			out <- str
-		}
-
-	}()
-
-	return out
-}
-
 func main() {
-	
-   ln, err:=net.Listen("tcp",":8080")
 
+	ln, err := net.Listen("tcp", ":8080")
 
 	if err != nil {
 		log.Fatal("couldn't read file", err)
 	}
 
+	for {
 
-    for {
-
-	conn,err:=ln.Accept()
-	if err != nil {
-		fmt.Println("Error while accepting")
-		continue
-	}
-	go handleconn(conn)
+		conn, err := ln.Accept()
+		if err != nil {
+			fmt.Println("Error while accepting")
+			continue
+		}
+		go handleConn(conn)
 
 	}
 }
 
-func handleconn(conn net.Conn) {
-	readfromchan := getLinesChannel(conn)
-	for l := range readfromchan {
-		fmt.Printf("read: %s\n", l)
-
-	}
+func handleConn(conn net.Conn) {
 	defer conn.Close()
+
+	reader := bufio.NewReader(conn)
+
+	// Read request line
+	line, err := reader.ReadString('\n')
+
+
+	if err != nil {
+		fmt.Println("Read error:", err)
+		return
+	}
+
+
+	// this is the same thing which we did last time with reading 8bit file , we are just splitting the request into 3 parts
+	line = strings.TrimSpace(line)
+	parts := strings.Fields(line)
+	if len(parts) < 3 {
+		fmt.Println("Invalid request line:", line)
+		return
+	}
+	method, path, proto := parts[0], parts[1], parts[2]
+	fmt.Printf("Request: %s %s %s\n", method, path, proto)
+
+	// Read headers
+	headers := map[string]string{}
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Header read error:", err)
+			return
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break // end of headers
+		}
+		kv := strings.SplitN(line, ":", 2)
+		if len(kv) == 2 {
+			headers[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+		}
+	}
+
+	// Build and write response
+	body := "Hello, world!"
+	resp := fmt.Sprintf(
+		"%s 200 OK\r\nContent-Length: %d\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n%s",
+		proto, len(body), body,
+	)
+
+	conn.Write([]byte(resp))
+	fmt.Println("Response sent")
 }
-
-
