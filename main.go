@@ -36,12 +36,10 @@ func handleConn(conn net.Conn) {
 	// Read request line
 	line, err := reader.ReadString('\n')
 
-
 	if err != nil {
 		fmt.Println("Read error:", err)
 		return
 	}
-
 
 	// this is the same thing which we did last time with reading 8bit file , we are just splitting the request into 3 parts
 	line = strings.TrimSpace(line)
@@ -51,7 +49,19 @@ func handleConn(conn net.Conn) {
 		return
 	}
 	method, path, proto := parts[0], parts[1], parts[2]
+	body := "Hello, world!"
 	fmt.Printf("Request: %s %s %s\n", method, path, proto)
+
+
+	//handiling different paths here 
+
+	switch parts[1] {
+	case "/":
+    body="hellow world"
+	case "/hello":
+	body="this is /hello"		
+	}
+
 
 	// Read headers
 	headers := map[string]string{}
@@ -63,7 +73,7 @@ func handleConn(conn net.Conn) {
 		}
 		line = strings.TrimSpace(line)
 		if line == "" {
-			break // end of headers
+			break
 		}
 		kv := strings.SplitN(line, ":", 2)
 		if len(kv) == 2 {
@@ -72,7 +82,7 @@ func handleConn(conn net.Conn) {
 	}
 
 	// Build and write response
-	body := "Hello, world!"
+    //	body := "Hello, world!"
 	resp := fmt.Sprintf(
 		"%s 200 OK\r\nContent-Length: %d\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n%s",
 		proto, len(body), body,
